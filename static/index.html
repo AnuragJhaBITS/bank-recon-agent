@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Reconciliation Agent</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --border: #e2e4e9;
+    --text: #1a1d23;
+    --text-secondary: #5f6570;
+    --accent: #2563eb;
+    --accent-light: #eff4ff;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --radius: 8px;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  /* --- Controls --- */
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  button {
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--bg); }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  button.primary:hover { background: #1d4ed8; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .status {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 8px 0;
+  }
+
+  /* --- Stats grid --- */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .stat-card .label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+  .stat-card .value {
+    font-size: 28px;
+    font-weight: 600;
+  }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.amber { color: var(--amber); }
+  .stat-card .value.red   { color: var(--red); }
+
+  /* --- Layer breakdown bar --- */
+  .layer-bar-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  .layer-bar-container h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .layer-bar {
+    display: flex;
+    height: 32px;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .layer-bar .segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    transition: width 0.4s ease;
+  }
+  .seg-exact { background: var(--green); }
+  .seg-fuzzy { background: var(--accent); }
+  .seg-llm   { background: #7c3aed; }
+  .seg-unmatched { background: #d1d5db; color: var(--text-secondary) !important; }
+
+  .layer-legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .layer-legend span::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .leg-exact::before  { background: var(--green); }
+  .leg-fuzzy::before  { background: var(--accent); }
+  .leg-llm::before    { background: #7c3aed; }
+  .leg-unmatched::before { background: #d1d5db; }
+
+  /* --- Tabs --- */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    padding: 10px 18px;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* --- Table --- */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow-x: auto;
+    margin-bottom: 24px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 100px;
+  }
+  .badge-exact  { background: var(--green-light); color: var(--green); }
+  .badge-fuzzy  { background: var(--accent-light); color: var(--accent); }
+  .badge-llm    { background: #f3f0ff; color: #7c3aed; }
+  .badge-bank   { background: var(--amber-light); color: var(--amber); }
+  .badge-gl     { background: var(--red-light); color: var(--red); }
+
+  .amount { font-variant-numeric: tabular-nums; }
+  .amount.positive { color: var(--green); }
+  .amount.negative { color: var(--text); }
+
+  .explanation {
+    max-width: 300px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 16px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<h1>Bank Reconciliation Agent</h1>
+<p class="subtitle">Three-layer matching: exact rules, fuzzy scoring, LLM exception handling</p>
+
+<div class="controls">
+  <button onclick="seedData()" id="btn-seed">Generate test data</button>
+  <button onclick="runRecon()" id="btn-recon" class="primary">Run reconciliation</button>
+  <span class="status" id="status"></span>
+</div>
+
+<div id="dashboard" style="display:none;">
+
+  <div class="stats-grid" id="stats-grid"></div>
+
+  <div class="layer-bar-container" id="layer-bar-container" style="display:none;">
+    <h3>Match breakdown by layer</h3>
+    <div class="layer-bar" id="layer-bar"></div>
+    <div class="layer-legend">
+      <span class="leg-exact">Exact</span>
+      <span class="leg-fuzzy">Fuzzy</span>
+      <span class="leg-llm">LLM</span>
+      <span class="leg-unmatched">Unmatched</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="matches" onclick="switchTab('matches')">Matches</button>
+    <button class="tab-btn" data-tab="exceptions" onclick="switchTab('exceptions')">Exceptions</button>
+  </div>
+
+  <div class="table-wrap" id="tab-content">
+    <div class="empty-state">Generate data and run reconciliation to see results.</div>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const status = (msg) => { $("#status").textContent = msg; };
+
+function fmt(n) {
+  const s = Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n < 0 ? `−${s}` : s;
+}
+function amtClass(n) { return n >= 0 ? "positive" : "negative"; }
+
+async function seedData() {
+  const btn = $("#btn-seed");
+  btn.disabled = true;
+  status("Generating synthetic data…");
+  try {
+    const res = await fetch("/generate-data", { method: "POST" });
+    const data = await res.json();
+    const s = data.summary;
+    status(
+      `Created ${s.total_bank_rows} bank rows, ${s.total_gl_rows} GL rows. ` +
+      `Planted errors: timing ${s.planted_errors.timing}, ` +
+      `amount ${s.planted_errors.amount_typo}, ` +
+      `desc ${s.planted_errors.description_mismatch}, ` +
+      `missing ${s.planted_errors.missing_gl + s.planted_errors.missing_bank}, ` +
+      `duplicates ${s.planted_errors.duplicate}.`
+    );
+  } catch (e) {
+    status("Error: " + e.message);
+  }
+  btn.disabled = false;
+}
+
+async function runRecon() {
+  const btn = $("#btn-recon");
+  btn.disabled = true;
+  status("Running three-layer reconciliation…");
+  try {
+    const res = await fetch("/reconcile", { method: "POST" });
+    const data = await res.json();
+    status("Done.");
+    await showDashboard();
+  } catch (e) {
+    status("Error: " + e.message);
+  }
+  btn.disabled = false;
+}
+
+async function showDashboard() {
+  const res = await fetch("/stats");
+  const s = await res.json();
+
+  $("#dashboard").style.display = "block";
+
+  const matchRate = s.auto_match_rate_pct;
+  const rateColor = matchRate >= 90 ? "green" : matchRate >= 70 ? "amber" : "red";
+  const precColor = s.precision_pct >= 95 ? "green" : s.precision_pct >= 80 ? "amber" : "red";
+
+  $("#stats-grid").innerHTML = `
+    <div class="stat-card">
+      <div class="label">Auto-match rate</div>
+      <div class="value ${rateColor}">${matchRate}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Precision</div>
+      <div class="value ${precColor}">${s.precision_pct}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Total matches</div>
+      <div class="value">${s.total_matches}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Unmatched bank</div>
+      <div class="value ${s.unmatched_bank > 0 ? 'amber' : ''}">${s.unmatched_bank}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Unmatched GL</div>
+      <div class="value ${s.unmatched_gl > 0 ? 'amber' : ''}">${s.unmatched_gl}</div>
+    </div>
+  `;
+
+  // layer bar
+  const total = s.total_bank_transactions;
+  const exact = s.matches_by_type.exact || 0;
+  const fuzzy = s.matches_by_type.fuzzy || 0;
+  const llm   = s.matches_by_type.llm || 0;
+  const unm   = total - exact - fuzzy - llm;
+
+  const bar = $("#layer-bar");
+  bar.innerHTML = "";
+  const segs = [
+    { cls: "seg-exact",     n: exact, label: exact },
+    { cls: "seg-fuzzy",     n: fuzzy, label: fuzzy },
+    { cls: "seg-llm",       n: llm,   label: llm },
+    { cls: "seg-unmatched", n: unm,   label: unm },
+  ];
+  for (const seg of segs) {
+    if (seg.n === 0) continue;
+    const pct = (seg.n / total * 100).toFixed(1);
+    const div = document.createElement("div");
+    div.className = `segment ${seg.cls}`;
+    div.style.width = pct + "%";
+    div.textContent = seg.label;
+    bar.appendChild(div);
+  }
+  $("#layer-bar-container").style.display = "block";
+
+  switchTab("matches");
+}
+
+async function switchTab(tab) {
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.tab === tab);
+  });
+
+  const container = $("#tab-content");
+
+  if (tab === "matches") {
+    const res = await fetch("/matches");
+    const matches = await res.json();
+    if (!matches.length) {
+      container.innerHTML = '<div class="empty-state">No matches yet.</div>';
+      return;
+    }
+    let html = `<table>
+      <tr>
+        <th>Type</th>
+        <th>Bank date</th>
+        <th>Bank desc</th>
+        <th>Bank amt</th>
+        <th>GL date</th>
+        <th>GL desc</th>
+        <th>GL amt</th>
+        <th>Confidence</th>
+        <th>Explanation</th>
+      </tr>`;
+    for (const m of matches) {
+      const b = m.bank || {};
+      const g = m.gl || {};
+      html += `<tr>
+        <td><span class="badge badge-${m.match_type}">${m.match_type}</span></td>
+        <td>${b.date || ""}</td>
+        <td>${b.description || ""}</td>
+        <td class="amount ${amtClass(b.amount)}">${fmt(b.amount)}</td>
+        <td>${g.date || ""}</td>
+        <td>${g.description || ""}</td>
+        <td class="amount ${amtClass(g.amount)}">${fmt(g.amount)}</td>
+        <td>${(m.confidence * 100).toFixed(0)}%</td>
+        <td class="explanation">${m.explanation}</td>
+      </tr>`;
+    }
+    html += "</table>";
+    container.innerHTML = html;
+
+  } else {
+    const res = await fetch("/exceptions");
+    const data = await res.json();
+    const bankRows = data.unmatched_bank || [];
+    const glRows = data.unmatched_gl || [];
+
+    if (!bankRows.length && !glRows.length) {
+      container.innerHTML = '<div class="empty-state">All rows matched.</div>';
+      return;
+    }
+
+    let html = `<table>
+      <tr>
+        <th>Side</th>
+        <th>Date</th>
+        <th>Description</th>
+        <th>Amount</th>
+        <th>Reference</th>
+        <th>Planted error</th>
+      </tr>`;
+    for (const b of bankRows) {
+      html += `<tr>
+        <td><span class="badge badge-bank">Bank</span></td>
+        <td>${b.date}</td>
+        <td>${b.description}</td>
+        <td class="amount ${amtClass(b.amount)}">${fmt(b.amount)}</td>
+        <td>${b.reference || ""}</td>
+        <td>${b.planted_error}</td>
+      </tr>`;
+    }
+    for (const g of glRows) {
+      html += `<tr>
+        <td><span class="badge badge-gl">GL</span></td>
+        <td>${g.date}</td>
+        <td>${g.description}</td>
+        <td class="amount ${amtClass(g.amount)}">${fmt(g.amount)}</td>
+        <td>${g.reference || ""}</td>
+        <td>${g.planted_error}</td>
+      </tr>`;
+    }
+    html += "</table>";
+    container.innerHTML = html;
+  }
+}
+</script>
+</body>
+</html>
