@@ -106,8 +106,4 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/recon
 pip install psycopg2-binary
 ```
 
-No code changes needed — SQLAlchemy handles the rest.
 
-## License
-
-MIT
